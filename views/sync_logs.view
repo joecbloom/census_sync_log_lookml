@@ -1,0 +1,203 @@
+view: sync_logs {
+  sql_table_name: census.sync_log ;;
+
+  dimension: log_id {
+    type: string
+    sql: ${TABLE}.log_id ;;
+    primary_key: yes
+  }
+
+  dimension: sync_id {
+    type: string
+    sql: ${TABLE}.sync_id ;;
+    link: {
+      label: "{{value}} Sync History"
+      url: "https://app.getcensus.com/syncs/{{ value | encode_uri }}/sync-history"
+      icon_url: "https://res.cloudinary.com/crunchbase-production/image/upload/c_lpad,f_auto,q_auto:eco,dpr_1/llmjpn8a0pgu8szjmnyi"
+    }
+  }
+
+  dimension: sync_run_id {
+    type: string
+    sql: ${TABLE}.sync_run_id ;;
+  }
+
+  dimension: record_identifier {
+    type: string
+    sql: ${TABLE}.record_identifier ;;
+  }
+
+  dimension: record_payload {
+    type: string
+    sql: ${TABLE}.record_payload ;;
+  }
+
+  dimension_group: batch_started_at {
+    type: time
+    sql: ${TABLE}.batch_started_at ;;
+  }
+
+  dimension_group: batch_completed_at {
+    type: time
+    sql: ${TABLE}.batch_completed_at ;;
+  }
+
+  dimension_group: logged_at {
+    timeframes: [date,month,year,time]
+    type: time
+    sql: ${TABLE}._census_logged_at ;;
+  }
+
+  dimension: operation {
+    type: string
+    sql: ${TABLE}.operation ;;
+  }
+
+  dimension: status {
+    type: string
+    sql: ${TABLE}.status ;;
+  }
+
+  dimension: status_message {
+    type: string
+    sql: ${TABLE}.status_message ;;
+  }
+
+  dimension: status_message_category {
+    type: string
+    sql: INITCAP(LEFT(${status_message}, regexp_instr(${status_message},':',1,1)-1)) ;;
+  }
+
+  set: detail {
+    fields: [
+      log_id,
+      sync_id,
+      sync_run_id,
+      record_identifier,
+      record_payload,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: sync_count {
+    type: count_distinct
+    sql: ${TABLE}.sync_id ;;
+    label: "Sync Count"
+    drill_fields: [
+      log_id,
+      sync_run_id,
+      record_identifier,
+      record_payload,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: syncs_with_rejects {
+    type: count_distinct
+    sql: ${TABLE}.sync_id ;;
+    filters: [status: "rejected"]
+    label: "Count of Syncs with Rejected Records"
+}
+
+  measure: sync_run_count {
+    type: count_distinct
+    sql: ${TABLE}.sync_run_id ;;
+    label: "Sync Run Count"
+    drill_fields: [
+      log_id,
+      sync_id,
+      record_identifier,
+      record_payload,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: syncs_runs_with_rejects {
+    type: count_distinct
+    sql: ${TABLE}.sync_run_id ;;
+    filters: [status: "rejected"]
+    label: "Count of Syncs Runs with Rejected Records"
+  }
+
+  measure: record_count {
+    type:  count
+    label: "Record Count"
+    drill_fields: [
+      log_id,
+      sync_id,
+      sync_run_id,
+      record_identifier,
+      record_payload,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: succeeded_record_count {
+    type: count
+    filters: [status: "succeeded"]
+    label: "Successful Record Count"
+    drill_fields: [
+      sync_id,
+      sync_run_id,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: rejected_record_count {
+    type: count
+    filters: [status: "rejected"]
+    label: "Rejected Record Count"
+    drill_fields: [
+      sync_id,
+      sync_run_id,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+  measure: percent_rejected {
+    type: number
+    sql: CAST(${rejected_record_count} AS decimal) / CAST(${record_count} AS decimal) ;;
+    value_format_name: percent_1
+    drill_fields: [
+      sync_id,
+      sync_run_id,
+      batch_started_at_time,
+      batch_completed_at_time,
+      logged_at_time,
+      operation,
+      status,
+      status_message
+    ]
+  }
+
+}
