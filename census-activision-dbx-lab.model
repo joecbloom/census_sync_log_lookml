@@ -1,0 +1,19 @@
+# Define the database connection to be used for this model.
+connection: "<set_connection>"
+
+# Datagroups define a caching policy for an Explore. To learn more,
+# use the Quick Help panel on the right to see documentation.
+
+datagroup: census-activision-dbx-lab_default_datagroup {
+  # sql_trigger: SELECT MAX(id) FROM etl_log;;
+  max_cache_age: "1 hour"
+}
+
+persist_with: census-activision-dbx-lab_default_datagroup
+
+# include all the views
+include: "/views/*.view.lkml"
+include: "activision_sync_history.dashboard.lookml"
+
+explore: sync_logs {}
+explore: sync_summary_daily {}
