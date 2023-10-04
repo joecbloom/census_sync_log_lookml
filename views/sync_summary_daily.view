@@ -1,0 +1,100 @@
+ view: sync_summary_daily {
+   derived_table: {
+     sql: with
+
+    sync_runs as (
+        select
+            sync_id
+            ,count(distinct(sync_run_id)) over (partition by sync_id) as total_runs
+            ,sync_run_id
+            ,status
+            ,min(batch_started_at) as created_at
+            ,max(batch_completed_at) as updated_at
+            ,count_if(status='succeeded') as succeeded_records
+            ,count_if(status='rejected') as rejected_records
+        from census.census.sync_log
+        where date_trunc(day,_census_logged_at)::date >= dateadd(day,-31,current_date) --sync run had to be within the past 31 days
+        --and sync_id = 356025
+        group by 1,3,4
+        --having count(*) > 19 -- sync must have had at least 20 runs
+        order by 1 desc, 3 desc, 4 desc, 5 desc
+        )
+
+    ,runs_daily as (
+        select
+            sync_id
+            ,created_at::date as run_date
+            ,sum(succeeded_records) over (partition by sync_id,created_at::date) as daily_succeeded_records
+            ,sum(rejected_records) over (partition by sync_id,created_at::date) as daily_rejected_records
+            ,(avg(succeeded_records) over (partition by sync_id))::int as avg_succeeded_records
+            ,(avg(rejected_records) over (partition by sync_id))::int as avg_rejected_records
+        from sync_runs
+        order by 1,2 desc
+    )
+
+    ,deviations as (
+        select
+            *
+            ,abs(daily_succeeded_records-avg_succeeded_records) as deviation_records
+            ,div0(100*abs(daily_succeeded_records-avg_succeeded_records),avg_succeeded_records)::int as deviation_percent
+            ,case when deviation_percent > 10 then true else false end as alert
+        from runs_daily
+        )
+
+select * from deviations
+
+       ;;
+   }
+
+  dimension: sync_id {
+    type: string
+    sql: ${TABLE}.sync_id ;;
+    link: {
+      label: "{{value}} Sync History"
+      url: "https://app.getcensus.com/syncs/{{ value | encode_uri }}/sync-history"
+      icon_url: "https://res.cloudinary.com/crunchbase-production/image/upload/c_lpad,f_auto,q_auto:eco,dpr_1/llmjpn8a0pgu8szjmnyi"
+    }
+  }
+
+  dimension_group: run_date {
+    timeframes: [date,week,month,year]
+    type: time
+    sql: ${TABLE}.run_date ;;
+  }
+
+  dimension: alert {
+    type: string
+    sql: ${TABLE}.alert ;;
+  }
+
+  dimension: daily_succeeded_records {
+    type: number
+    sql: ${TABLE}.daily_succeeded_records ;;
+  }
+
+  measure: daily_rejected_records {
+    type: sum
+    sql: ${TABLE}.daily_rejected_records ;;
+  }
+
+  dimension: avg_succeeded_records {
+    type: number
+    sql: ${TABLE}.avg_succeeded_records ;;
+  }
+
+  measure: avg_rejected_records {
+    type: average
+    sql: ${TABLE}.avg_rejected_records ;;
+  }
+
+  measure: deviation_records {
+    type: sum
+    sql: ${TABLE}.deviation_records ;;
+  }
+
+  measure: deviation_percent {
+    type: average
+    sql: ${TABLE}.deviation_percent ;;
+  }
+
+}
